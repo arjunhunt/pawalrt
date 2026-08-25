@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
-import com.google.firebase.auth.userProfileChangeRequest
+import com.google.firebase.auth.UserProfileChangeRequest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -68,9 +68,9 @@ class AuthViewModel(
                 val user = result.user
 
                 if (user != null && name.isNotBlank()) {
-                    val profileUpdate = userProfileChangeRequest {
-                        displayName = name.trim()
-                    }
+                    val profileUpdate = UserProfileChangeRequest.Builder()
+                        .setDisplayName(name.trim())
+                        .build()
                     user.updateProfile(profileUpdate).await()
                 }
 
@@ -105,7 +105,9 @@ class AuthViewModel(
                 if (isSignUp) {
                     val result = auth.createUserWithEmailAndPassword(email, password).await()
                     if (name.isNotBlank()) {
-                        val profileUpdate = userProfileChangeRequest { displayName = name }
+                        val profileUpdate = UserProfileChangeRequest.Builder()
+                            .setDisplayName(name)
+                            .build()
                         result.user?.updateProfile(profileUpdate)?.await()
                     }
                 } else {
@@ -130,7 +132,9 @@ class AuthViewModel(
         val user = auth.currentUser ?: return
         viewModelScope.launch {
             try {
-                val profileUpdate = userProfileChangeRequest { displayName = name.trim() }
+                val profileUpdate = UserProfileChangeRequest.Builder()
+                    .setDisplayName(name.trim())
+                    .build()
                 user.updateProfile(profileUpdate).await()
                 _uiState.update { it.copy(displayName = name.trim(), currentUser = auth.currentUser) }
             } catch (e: Exception) {

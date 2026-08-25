@@ -277,7 +277,7 @@ fun DetailScreen(
                                 )
                             ) {
                                 Marker(
-                                    state = MarkerState(position = dogPosition),
+                                    state = rememberMarkerState(position = dogPosition),
                                     title = report.problemTypeEnum().label,
                                     snippet = report.address
                                 )

@@ -35,6 +35,7 @@ import com.example.pawalert.ui.theme.Amber40
 import com.example.pawalert.ui.theme.Brown40
 import com.example.pawalert.ui.theme.StatusOpen
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.PermissionStatus
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.accompanist.permissions.rememberPermissionState
@@ -171,7 +172,7 @@ fun ReportScreen(
                                 .padding(12.dp)
                                 .clip(CircleShape)
                                 .clickable {
-                                    if (cameraPermissionState.status.isGranted) {
+                                    if (cameraPermissionState.status == PermissionStatus.Granted) {
                                         val uri = viewModel.prepareCameraUri()
                                         cameraUriTarget = uri
                                         cameraLauncher.launch(uri)
@@ -218,7 +219,7 @@ fun ReportScreen(
                         ) {
                             Button(
                                 onClick = {
-                                    if (cameraPermissionState.status.isGranted) {
+                                    if (cameraPermissionState.status == PermissionStatus.Granted) {
                                         val uri = viewModel.prepareCameraUri()
                                         cameraUriTarget = uri
                                         cameraLauncher.launch(uri)

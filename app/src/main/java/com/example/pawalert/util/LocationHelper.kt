@@ -21,11 +21,13 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.coroutines.resume
+import kotlin.math.*
 
 object LocationHelper {
 
     /**
-     * Calculates distance in meters between two lat/lng coordinates.
+     * Calculates distance in meters between two lat/lng coordinates using the Haversine formula.
+     * Pure math implementation so it runs seamlessly in unit tests and on device without mocking.
      */
     fun calculateDistanceMeters(
         startLat: Double,
@@ -33,9 +35,14 @@ object LocationHelper {
         endLat: Double,
         endLng: Double
     ): Float {
-        val results = FloatArray(1)
-        Location.distanceBetween(startLat, startLng, endLat, endLng, results)
-        return results[0]
+        val earthRadius = 6371000.0 // meters
+        val latDistance = Math.toRadians(endLat - startLat)
+        val lonDistance = Math.toRadians(endLng - startLng)
+        val a = sin(latDistance / 2) * sin(latDistance / 2) +
+                cos(Math.toRadians(startLat)) * cos(Math.toRadians(endLat)) *
+                sin(lonDistance / 2) * sin(lonDistance / 2)
+        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+        return (earthRadius * c).toFloat()
     }
 
     /**
@@ -46,7 +53,7 @@ object LocationHelper {
         return if (meters < 1000) {
             "${meters.toInt()} m away"
         } else {
-            String.format(Locale.getDefault(), "%.1f km away", meters / 1000f)
+            String.format(Locale.US, "%.1f km away", meters / 1000f)
         }
     }
 
@@ -121,7 +128,7 @@ object LocationHelper {
     }
 
     private fun formatCoordinatesFallback(lat: Double, lng: Double): String {
-        return String.format(Locale.getDefault(), "Lat: %.4f, Lng: %.4f", lat, lng)
+        return String.format(Locale.US, "Lat: %.4f, Lng: %.4f", lat, lng)
     }
 
     /**
@@ -160,7 +167,7 @@ object LocationHelper {
             hours < 24 -> "${hours}h ago"
             days == 1L -> "Yesterday"
             days < 7 -> "${days}d ago"
-            else -> SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date(timestamp))
+            else -> SimpleDateFormat("MMM d, yyyy", Locale.US).format(Date(timestamp))
         }
     }
 }

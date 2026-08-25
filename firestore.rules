@@ -1,0 +1,20 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /reports/{reportId} {
+      // Anyone signed in can view active dog reports
+      allow read: if request.auth != null;
+
+      // Any signed in user can submit a new dog report
+      allow create: if request.auth != null
+                    && request.resource.data.reporterId == request.auth.uid;
+
+      // Volunteers can claim reports, resolve them, or reporters can edit
+      allow update: if request.auth != null;
+
+      // Reporters can delete their own report if needed
+      allow delete: if request.auth != null 
+                    && resource.data.reporterId == request.auth.uid;
+    }
+  }
+}

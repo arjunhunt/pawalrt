@@ -35,17 +35,13 @@ class FeedViewModel(
     private val _userLocation = MutableStateFlow<Location?>(null)
     private val _selectedCategory = MutableStateFlow<ProblemType?>(null)
     private val _selectedStatus = MutableStateFlow<ReportStatus?>(null)
-    private val _isLoading = MutableStateFlow(true)
-    private val _error = MutableStateFlow<String?>(null)
 
     val uiState: StateFlow<FeedUiState> = combine(
         repository.observeActiveReports(),
         _userLocation,
         _selectedCategory,
-        _selectedStatus,
-        _isLoading,
-        _error
-    ) { rawReports, location, category, status, loading, error ->
+        _selectedStatus
+    ) { rawReports, location, category, status ->
         val mappedReports = rawReports.map { report ->
             val distance = if (location != null && report.location.latitude != 0.0 && report.location.longitude != 0.0) {
                 LocationHelper.calculateDistanceMeters(
@@ -77,27 +73,21 @@ class FeedViewModel(
         )
 
         FeedUiState(
-            isLoading = loading,
+            isLoading = false,
             userLocation = location,
             selectedCategory = category,
             selectedStatus = status,
             reports = sorted,
-            error = error
+            error = null
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
-        initialValue = FeedUiState()
+        initialValue = FeedUiState(isLoading = true)
     )
 
     init {
         refreshLocation()
-        viewModelScope.launch {
-            // Wait for first emission from flow then stop initial loading indicator
-            repository.observeActiveReports().collect {
-                _isLoading.value = false
-            }
-        }
     }
 
     fun refreshLocation() {

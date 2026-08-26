@@ -60,62 +60,62 @@ class ReportRepository {
      * Safely catches any Firestore errors (e.g. database not created yet, offline)
      * without crashing the app.
      */
-    fun observeActiveReports(): Flow<List<DogReport>> = callbackFlow {
+    fun observeActiveReports(): Flow<List<DogReport>> = callbackFlow<List<DogReport>> {
         try {
             val registration = reportsCollection
                 .addSnapshotListener { snapshot, error ->
                     if (error != null) {
                         error.printStackTrace()
-                        trySend(emptyList())
+                        trySend(emptyList<DogReport>())
                         return@addSnapshotListener
                     }
                     try {
-                        val reports = snapshot?.toObjects(DogReport::class.java) ?: emptyList()
+                        val reports = snapshot?.toObjects(DogReport::class.java) ?: emptyList<DogReport>()
                         val activeReports = reports.filter {
                             it.status == ReportStatus.OPEN.name || it.status == ReportStatus.IN_PROGRESS.name
                         }
                         trySend(activeReports)
                     } catch (e: Throwable) {
                         e.printStackTrace()
-                        trySend(emptyList())
+                        trySend(emptyList<DogReport>())
                     }
                 }
             awaitClose { registration.remove() }
         } catch (e: Throwable) {
             e.printStackTrace()
-            trySend(emptyList())
+            trySend(emptyList<DogReport>())
             close()
         }
     }.catch { e ->
         e.printStackTrace()
-        emit(emptyList())
+        emit(emptyList<DogReport>())
     }
 
-    fun observeReport(reportId: String): Flow<DogReport?> = callbackFlow {
+    fun observeReport(reportId: String): Flow<DogReport?> = callbackFlow<DogReport?> {
         try {
             val registration = reportsCollection.document(reportId)
                 .addSnapshotListener { snapshot, error ->
                     if (error != null) {
                         error.printStackTrace()
-                        trySend(null)
+                        trySend(null as DogReport?)
                         return@addSnapshotListener
                     }
                     try {
                         trySend(snapshot?.toObject(DogReport::class.java))
                     } catch (e: Throwable) {
                         e.printStackTrace()
-                        trySend(null)
+                        trySend(null as DogReport?)
                     }
                 }
             awaitClose { registration.remove() }
         } catch (e: Throwable) {
             e.printStackTrace()
-            trySend(null)
+            trySend(null as DogReport?)
             close()
         }
     }.catch { e ->
         e.printStackTrace()
-        emit(null)
+        emit(null as DogReport?)
     }
 
     /** Called when a nearby feeder taps "I'll help this dog". */

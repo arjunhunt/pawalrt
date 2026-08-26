@@ -1,26 +1,21 @@
 {
   "project_info": {
-    "project_number": "123456789012",
-    "project_id": "pawalert-app-demo",
-    "storage_bucket": "pawalert-app-demo.appspot.com"
+    "project_number": "595422820339",
+    "project_id": "pawalert3007",
+    "storage_bucket": "pawalert3007.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:123456789012:android:abcdef1234567890abcdef",
+        "mobilesdk_app_id": "1:595422820339:android:d1824edd7385119b09c486",
         "android_client_info": {
           "package_name": "com.example.pawalert"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "123456789012-abcdefghijklmnopqrstuvwxyz.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDemoKeyPlaceholderForPawAlert12345"
+          "current_key": "AIzaSyCJkD_ILox9jxi19brx_rWmGEKpwWydi60"
         }
       ],
       "services": {

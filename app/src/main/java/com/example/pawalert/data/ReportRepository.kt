@@ -4,11 +4,11 @@ import android.net.Uri
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.GeoPoint
-import com.google.firebase.firestore.Query
 import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.tasks.await
 import java.util.UUID
 
@@ -56,34 +56,44 @@ class ReportRepository(
     }
 
     /**
-     * Real-time stream of all non-resolved reports, newest first.
-     * Distance-based sorting/filtering happens client-side in the ViewModel
-     * (Firestore doesn't do geo-radius queries without extra geohashing setup).
+     * Real-time stream of all non-resolved reports.
+     * Safely catches any Firestore errors (e.g. database not created yet, rules)
+     * without crashing the app.
      */
     fun observeActiveReports(): Flow<List<DogReport>> = callbackFlow {
         val registration = reportsCollection
-            .whereIn("status", listOf(ReportStatus.OPEN.name, ReportStatus.IN_PROGRESS.name))
-            .orderBy("createdAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    close(error)
+                    error.printStackTrace()
+                    trySend(emptyList())
                     return@addSnapshotListener
                 }
-                trySend(snapshot?.toObjects(DogReport::class.java) ?: emptyList())
+                val reports = snapshot?.toObjects(DogReport::class.java) ?: emptyList()
+                val activeReports = reports.filter {
+                    it.status == ReportStatus.OPEN.name || it.status == ReportStatus.IN_PROGRESS.name
+                }
+                trySend(activeReports)
             }
         awaitClose { registration.remove() }
+    }.catch { e ->
+        e.printStackTrace()
+        emit(emptyList())
     }
 
     fun observeReport(reportId: String): Flow<DogReport?> = callbackFlow {
         val registration = reportsCollection.document(reportId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    close(error)
+                    error.printStackTrace()
+                    trySend(null)
                     return@addSnapshotListener
                 }
                 trySend(snapshot?.toObject(DogReport::class.java))
             }
         awaitClose { registration.remove() }
+    }.catch { e ->
+        e.printStackTrace()
+        emit(null)
     }
 
     /** Called when a nearby feeder taps "I'll help this dog". */

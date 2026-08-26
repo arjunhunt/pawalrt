@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -65,17 +66,16 @@ fun DetailScreen(
                     }
                 },
                 actions = {
-                    val report = uiState.report
-                    if (report != null) {
+                    uiState.report?.let { report ->
                         IconButton(onClick = {
                             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
                                 putExtra(
                                     Intent.EXTRA_TEXT,
-                                    "🚨 Stray Dog Alert (${report.problemTypeEnum().label}) near ${report.address}:\n${report.description}"
+                                    "🚨 PawAlert: ${report.problemTypeEnum().label} dog reported at ${report.address} (${if (report.landmark.isNotBlank()) "Near " + report.landmark + ", " else ""}GPS: ${report.location.latitude}, ${report.location.longitude}). Description: ${report.description}"
                                 )
                             }
-                            context.startActivity(Intent.createChooser(shareIntent, "Share Alert"))
+                            context.startActivity(Intent.createChooser(shareIntent, "Share Dog Alert"))
                         }) {
                             Icon(Icons.Default.Share, contentDescription = "Share")
                         }
@@ -123,13 +123,38 @@ fun DetailScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(280.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                     ) {
-                        AsyncImage(
-                            model = report.photoUrl,
-                            contentDescription = "Photo of reported dog",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
+                        if (report.photoUrl.isNotBlank()) {
+                            AsyncImage(
+                                model = report.photoUrl,
+                                contentDescription = "Photo of reported dog",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Pets,
+                                        contentDescription = null,
+                                        tint = Amber40,
+                                        modifier = Modifier.size(48.dp)
+                                    )
+                                    Text(
+                                        text = "Photo not provided",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
+                            }
+                        }
 
                         // Status Badge
                         Surface(
@@ -178,137 +203,157 @@ fun DetailScreen(
                             )
                         }
 
-                        // Description
+                        // Description Card
                         Text(
                             text = "Situation Description",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Brown40
-                        )
-                        Text(
-                            text = report.description,
-                            style = MaterialTheme.typography.bodyLarge
+                            color = Amber40
                         )
 
-                        // Reporter Info
+                        Text(
+                            text = report.description,
+                            style = MaterialTheme.typography.bodyLarge,
+                            lineHeight = 22.sp
+                        )
+
+                        // Reporter Info Card
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                         ) {
                             Row(
                                 modifier = Modifier.padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Icon(Icons.Default.Person, contentDescription = null, tint = Brown40)
+                                Icon(Icons.Default.Person, contentDescription = null, tint = Amber40)
                                 Text(
-                                    text = "Reported by ${report.reporterName.ifBlank { "Anonymous Reporter" }}",
+                                    text = "Reported by ${report.reporterName}",
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Medium
                                 )
                             }
                         }
 
-                        // Helper Banner (if in progress)
-                        if (statusEnum == ReportStatus.IN_PROGRESS) {
-                            Surface(
-                                modifier = Modifier.fillMaxWidth(),
-                                color = StatusInProgress.copy(alpha = 0.15f),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.VolunteerActivism,
-                                        contentDescription = null,
-                                        tint = StatusInProgress,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                    Column {
-                                        Text(
-                                            text = "Being Handled",
-                                            fontWeight = FontWeight.Bold,
-                                            color = StatusInProgress
-                                        )
-                                        Text(
-                                            text = "${report.helperName ?: "A feeder"} is currently assisting this dog.",
-                                            style = MaterialTheme.typography.bodySmall
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // Map & Location Section
+                        // Location Details Card
                         Text(
                             text = "Dog's Location",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Brown40
+                            color = Amber40
                         )
-
-                        Text(
-                            text = report.address.ifBlank { "GPS Coordinates: ${report.location.latitude}, ${report.location.longitude}" },
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-
-                        // Interactive Google Map Card
-                        val dogPosition = LatLng(report.location.latitude, report.location.longitude)
-                        val cameraPositionState = rememberCameraPositionState {
-                            position = CameraPosition.fromLatLngZoom(dogPosition, 16f)
-                        }
 
                         Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(200.dp),
-                            shape = RoundedCornerShape(14.dp)
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
                         ) {
-                            GoogleMap(
-                                modifier = Modifier.fillMaxSize(),
-                                cameraPositionState = cameraPositionState,
-                                uiSettings = MapUiSettings(
-                                    zoomControlsEnabled = true,
-                                    myLocationButtonEnabled = false
-                                )
+                            Column(
+                                modifier = Modifier.padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Marker(
-                                    state = rememberMarkerState(position = dogPosition),
-                                    title = report.problemTypeEnum().label,
-                                    snippet = report.address
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.Top,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Place,
+                                        contentDescription = null,
+                                        tint = Amber40,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(
+                                            text = report.address.ifBlank { "Location captured" },
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        if (report.landmark.isNotBlank()) {
+                                            Surface(
+                                                color = Amber40.copy(alpha = 0.2f),
+                                                shape = RoundedCornerShape(6.dp)
+                                            ) {
+                                                Text(
+                                                    text = "📍 Landmark: ${report.landmark}",
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = Amber80,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            text = "GPS: %.5f, %.5f".format(report.location.latitude, report.location.longitude),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+
+                                // Embedded Google Map
+                                val dogPosition = LatLng(report.location.latitude, report.location.longitude)
+                                val cameraPositionState = rememberCameraPositionState {
+                                    position = CameraPosition.fromLatLngZoom(dogPosition, 16f)
+                                }
+
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(180.dp),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    try {
+                                        GoogleMap(
+                                            modifier = Modifier.fillMaxSize(),
+                                            cameraPositionState = cameraPositionState,
+                                            uiSettings = MapUiSettings(
+                                                zoomControlsEnabled = true,
+                                                myLocationButtonEnabled = false
+                                            )
+                                        ) {
+                                            Marker(
+                                                state = rememberMarkerState(position = dogPosition),
+                                                title = report.problemTypeEnum().label,
+                                                snippet = report.address
+                                            )
+                                        }
+                                    } catch (_: Throwable) {
+                                        Box(
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text("Map preview unavailable")
+                                        }
+                                    }
+                                }
+
+                                // Open Navigation in Google Maps App
+                                Button(
+                                    onClick = {
+                                        val uri = Uri.parse("geo:${report.location.latitude},${report.location.longitude}?q=${report.location.latitude},${report.location.longitude}(PawAlert+Dog)")
+                                        val mapIntent = Intent(Intent.ACTION_VIEW, uri).apply {
+                                            setPackage("com.google.android.apps.maps")
+                                        }
+                                        try {
+                                            context.startActivity(mapIntent)
+                                        } catch (_: Exception) {
+                                            val webUri = Uri.parse("https://www.google.com/maps/search/?api=1&query=${report.location.latitude},${report.location.longitude}")
+                                            context.startActivity(Intent(Intent.ACTION_VIEW, webUri))
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Amber40)
+                                ) {
+                                    Icon(Icons.Default.Navigation, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Open Turn-by-Turn Navigation", fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
 
-                        // Open in Google Maps Button
-                        OutlinedButton(
-                            onClick = {
-                                val uri = Uri.parse("geo:${report.location.latitude},${report.location.longitude}?q=${report.location.latitude},${report.location.longitude}(PawAlert+Dog)")
-                                val mapIntent = Intent(Intent.ACTION_VIEW, uri).apply {
-                                    setPackage("com.google.android.apps.maps")
-                                }
-                                if (mapIntent.resolveActivity(context.packageManager) != null) {
-                                    context.startActivity(mapIntent)
-                                } else {
-                                    // Fallback to browser map
-                                    val webUri = Uri.parse("https://www.google.com/maps/search/?api=1&query=${report.location.latitude},${report.location.longitude}")
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, webUri))
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Default.Directions, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Open in Google Maps / Navigate")
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Actions Area
+                        // Feeder Helper Action Section
                         val isActionLoading = uiState.actionState is DetailActionState.Loading
 
                         when (statusEnum) {
@@ -317,9 +362,9 @@ fun DetailScreen(
                                     onClick = { viewModel.claimReport(report.id) },
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .height(54.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Amber40),
-                                    shape = RoundedCornerShape(14.dp),
+                                        .height(52.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = StatusInProgress),
+                                    shape = RoundedCornerShape(12.dp),
                                     enabled = !isActionLoading
                                 ) {
                                     if (isActionLoading) {
@@ -327,7 +372,7 @@ fun DetailScreen(
                                     } else {
                                         Icon(Icons.Default.VolunteerActivism, contentDescription = null)
                                         Spacer(modifier = Modifier.width(8.dp))
-                                        Text("I'll help this dog", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                        Text("🐾 I'll Help This Dog", fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -338,9 +383,9 @@ fun DetailScreen(
                                             onClick = { viewModel.markResolved(report.id) },
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .height(50.dp),
+                                                .height(52.dp),
                                             colors = ButtonDefaults.buttonColors(containerColor = StatusResolved),
-                                            shape = RoundedCornerShape(14.dp),
+                                            shape = RoundedCornerShape(12.dp),
                                             enabled = !isActionLoading
                                         ) {
                                             if (isActionLoading) {
@@ -348,72 +393,59 @@ fun DetailScreen(
                                             } else {
                                                 Icon(Icons.Default.CheckCircle, contentDescription = null)
                                                 Spacer(modifier = Modifier.width(8.dp))
-                                                Text("Mark as Resolved", fontWeight = FontWeight.Bold)
+                                                Text("Mark as Fed / Rescued / Resolved", fontWeight = FontWeight.Bold)
                                             }
                                         }
 
                                         OutlinedButton(
                                             onClick = { viewModel.unclaimReport(report.id) },
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(48.dp),
-                                            shape = RoundedCornerShape(14.dp),
+                                            modifier = Modifier.fillMaxWidth(),
                                             enabled = !isActionLoading
                                         ) {
-                                            Text("Can't help anymore (Release Alert)")
+                                            Text("Cancel / Release for another feeder")
                                         }
                                     }
                                 } else {
                                     Surface(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        color = Amber80.copy(alpha = 0.5f),
-                                        shape = RoundedCornerShape(12.dp)
+                                        color = StatusInProgress.copy(alpha = 0.15f),
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Text(
-                                            text = "A volunteer is currently attending to this dog. Thank you for checking!",
-                                            modifier = Modifier.padding(16.dp),
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Medium,
-                                            color = Brown40
-                                        )
+                                        Row(
+                                            modifier = Modifier.padding(14.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(Icons.Default.Info, contentDescription = null, tint = StatusInProgress)
+                                            Text(
+                                                text = "Currently being handled by ${report.helperName ?: "a nearby feeder"}",
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
                                     }
                                 }
                             }
                             ReportStatus.RESOLVED -> {
                                 Surface(
-                                    modifier = Modifier.fillMaxWidth(),
                                     color = StatusResolved.copy(alpha = 0.15f),
-                                    shape = RoundedCornerShape(14.dp)
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(16.dp),
+                                        modifier = Modifier.padding(14.dp),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Icon(
-                                            Icons.Default.CheckCircle,
-                                            contentDescription = null,
-                                            tint = StatusResolved,
-                                            modifier = Modifier.size(32.dp)
+                                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = StatusResolved)
+                                        Text(
+                                            text = "This dog alert has been safely resolved! 🎉",
+                                            fontWeight = FontWeight.Bold,
+                                            color = StatusResolved
                                         )
-                                        Column {
-                                            Text(
-                                                text = "Alert Resolved",
-                                                fontWeight = FontWeight.Bold,
-                                                color = StatusResolved,
-                                                fontSize = 16.sp
-                                            )
-                                            Text(
-                                                text = "This dog received assistance and this case is closed.",
-                                                style = MaterialTheme.typography.bodySmall
-                                            )
-                                        }
                                     }
                                 }
                             }
                         }
-
-                        Spacer(modifier = Modifier.height(24.dp))
                     }
                 }
             }

@@ -378,7 +378,7 @@ fun DogReportCard(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // Location / Address
+                // Location / Address & Landmark
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -386,11 +386,15 @@ fun DogReportCard(
                     Icon(
                         imageVector = Icons.Default.Place,
                         contentDescription = null,
-                        tint = Brown40,
+                        tint = Amber40,
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
-                        text = report.address.ifBlank { "Location captured" },
+                        text = if (report.landmark.isNotBlank()) {
+                            "${report.address} • 📍 ${report.landmark}"
+                        } else {
+                            report.address.ifBlank { "Location captured" }
+                        },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,

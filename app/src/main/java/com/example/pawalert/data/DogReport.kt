@@ -23,9 +23,6 @@ enum class ReportStatus(val label: String) {
 /**
  * Represents a single reported dog-welfare problem.
  * Stored as a document in the "reports" Firestore collection.
- *
- * No-arg constructor + var properties are required for Firestore's
- * automatic deserialization (toObject<DogReport>()).
  */
 data class DogReport(
     var id: String = "",
@@ -36,6 +33,7 @@ data class DogReport(
     var photoUrl: String = "",
     var location: GeoPoint = GeoPoint(0.0, 0.0),
     var address: String = "",
+    var landmark: String = "",
     @get:PropertyName("status") @set:PropertyName("status")
     var status: String = ReportStatus.OPEN.name,
     var helperId: String? = null,

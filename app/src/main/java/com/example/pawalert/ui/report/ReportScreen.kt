@@ -6,7 +6,6 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -33,9 +32,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.pawalert.data.ProblemType
-import com.example.pawalert.ui.theme.Amber40
-import com.example.pawalert.ui.theme.Brown40
-import com.example.pawalert.ui.theme.StatusOpen
+import com.example.pawalert.ui.theme.*
 import com.example.pawalert.util.LocationHelper
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -152,7 +149,7 @@ fun ReportScreen(
                 text = "1. Dog Photo *",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Brown40
+                color = Amber40
             )
 
             Card(
@@ -160,7 +157,7 @@ fun ReportScreen(
                     .fillMaxWidth()
                     .height(220.dp),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 if (uiState.selectedPhotoUri != null) {
@@ -188,7 +185,7 @@ fun ReportScreen(
                                         cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                                     }
                                 },
-                            color = MaterialTheme.colorScheme.primary,
+                            color = Amber40,
                             contentColor = Color.White
                         ) {
                             Row(
@@ -260,7 +257,7 @@ fun ReportScreen(
                 text = "2. Category of Need *",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Brown40
+                color = Amber40
             )
 
             LazyRow(
@@ -300,43 +297,40 @@ fun ReportScreen(
                 text = "3. Description *",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Brown40
+                color = Amber40
             )
 
             OutlinedTextField(
                 value = uiState.description,
                 onValueChange = viewModel::onDescriptionChanged,
                 placeholder = {
-                    Text("Describe color, collar, condition, landmarks, or immediate dangers...")
+                    Text("Describe dog appearance, condition, injury or behavior...")
                 },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(130.dp),
+                    .height(110.dp),
                 shape = RoundedCornerShape(12.dp),
-                maxLines = 5,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Amber40,
-                    cursorColor = Amber40
-                )
+                maxLines = 4
             )
 
-            // Section 4: Location Capture
+            // Section 4: Location & Address
             Text(
-                text = "4. Dog's Location *",
+                text = "4. Dog's Location & Address *",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = Brown40
+                color = Amber40
             )
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    // Auto GPS Bar
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -344,59 +338,85 @@ fun ReportScreen(
                         Icon(
                             imageVector = Icons.Default.LocationOn,
                             contentDescription = null,
-                            tint = StatusOpen
+                            tint = if (uiState.latitude != null) StatusResolved else StatusOpen
                         )
-                        Text(
-                            text = if (uiState.address.isNotBlank()) uiState.address else "No location captured yet",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-
-                    if (uiState.latitude != null && uiState.longitude != null) {
-                        Text(
-                            text = "GPS: %.5f, %.5f".format(uiState.latitude, uiState.longitude),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    Button(
-                        onClick = {
-                            if (LocationHelper.hasLocationPermission(context)) {
-                                viewModel.fetchCurrentLocation()
-                            } else {
-                                locationLauncher.launch(
-                                    arrayOf(
-                                        Manifest.permission.ACCESS_FINE_LOCATION,
-                                        Manifest.permission.ACCESS_COARSE_LOCATION
-                                    )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = if (uiState.latitude != null) "GPS Locked" else "GPS Location Required",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (uiState.latitude != null) StatusResolved else StatusOpen
+                            )
+                            if (uiState.latitude != null && uiState.longitude != null) {
+                                Text(
+                                    text = "%.5f, %.5f".format(uiState.latitude, uiState.longitude),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Brown40),
-                        enabled = !uiState.isFetchingLocation
-                    ) {
-                        if (uiState.isFetchingLocation) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                color = Color.White,
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Detecting GPS...")
-                        } else {
-                            Icon(Icons.Default.MyLocation, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(if (uiState.latitude != null) "Refresh Location" else "Get Current Location")
+                        }
+
+                        Button(
+                            onClick = {
+                                if (LocationHelper.hasLocationPermission(context)) {
+                                    viewModel.fetchCurrentLocation()
+                                } else {
+                                    locationLauncher.launch(
+                                        arrayOf(
+                                            Manifest.permission.ACCESS_FINE_LOCATION,
+                                            Manifest.permission.ACCESS_COARSE_LOCATION
+                                        )
+                                    )
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Amber40),
+                            enabled = !uiState.isFetchingLocation
+                        ) {
+                            if (uiState.isFetchingLocation) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = Color.White,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(Icons.Default.MyLocation, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(if (uiState.latitude != null) "Refresh GPS" else "Detect GPS", fontSize = 12.sp)
+                            }
                         }
                     }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f))
+
+                    // Editable Address Field
+                    OutlinedTextField(
+                        value = uiState.address,
+                        onValueChange = viewModel::onAddressChanged,
+                        label = { Text("Area / Locality / Street Address") },
+                        placeholder = { Text("e.g. Devdham, Umargam") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        leadingIcon = {
+                            Icon(Icons.Default.Place, contentDescription = null, tint = Amber40)
+                        }
+                    )
+
+                    // Editable Landmark / Spot details
+                    OutlinedTextField(
+                        value = uiState.landmark,
+                        onValueChange = viewModel::onLandmarkChanged,
+                        label = { Text("Specific Landmark / Spot Details (Optional)") },
+                        placeholder = { Text("e.g. Near Sharma tea stall, opposite blue gate") },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 2,
+                        leadingIcon = {
+                            Icon(Icons.Default.Navigation, contentDescription = null, tint = Amber80)
+                        }
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             // Submit Button
             val isSubmitting = uiState.submissionState is ReportSubmissionState.UploadingPhoto ||
@@ -422,8 +442,7 @@ fun ReportScreen(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = if (uiState.submissionState is ReportSubmissionState.UploadingPhoto)
-                            "Uploading Photo..." else "Broadcasting Alert...",
+                        text = "Broadcasting Alert...",
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp
                     )

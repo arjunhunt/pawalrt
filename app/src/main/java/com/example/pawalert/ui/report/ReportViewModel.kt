@@ -30,6 +30,7 @@ data class ReportFormState(
     val latitude: Double? = null,
     val longitude: Double? = null,
     val address: String = "",
+    val landmark: String = "",
     val isFetchingLocation: Boolean = false,
     val submissionState: ReportSubmissionState = ReportSubmissionState.Idle
 ) {
@@ -72,12 +73,20 @@ class ReportViewModel(
         _uiState.update { it.copy(description = description) }
     }
 
+    fun onAddressChanged(address: String) {
+        _uiState.update { it.copy(address = address) }
+    }
+
+    fun onLandmarkChanged(landmark: String) {
+        _uiState.update { it.copy(landmark = landmark) }
+    }
+
     fun fetchCurrentLocation() {
         viewModelScope.launch {
             _uiState.update { it.copy(isFetchingLocation = true) }
             val location = LocationHelper.getCurrentLocation(getApplication())
             if (location != null) {
-                val address = LocationHelper.getAddressFromLocation(
+                val detectedAddress = LocationHelper.getAddressFromLocation(
                     getApplication(),
                     location.latitude,
                     location.longitude
@@ -86,7 +95,7 @@ class ReportViewModel(
                     it.copy(
                         latitude = location.latitude,
                         longitude = location.longitude,
-                        address = address,
+                        address = if (it.address.isBlank()) detectedAddress else it.address,
                         isFetchingLocation = false
                     )
                 }
@@ -114,7 +123,8 @@ class ReportViewModel(
                     photoUrl = photoData,
                     latitude = lat,
                     longitude = lng,
-                    address = state.address.ifBlank { "Location coordinates recorded" }
+                    address = state.address.ifBlank { "Location coordinates recorded" },
+                    landmark = state.landmark.trim()
                 )
 
                 _uiState.update { it.copy(submissionState = ReportSubmissionState.Success) }

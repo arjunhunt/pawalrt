@@ -3,6 +3,8 @@ package com.example.pawalert.data
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
 import android.util.Base64
 import com.google.firebase.auth.FirebaseAuth
@@ -24,36 +26,85 @@ class ReportRepository {
     private val reportsCollection by lazy { firestore.collection("reports") }
 
     /**
-     * Compresses the dog photo to an optimized JPEG and encodes to Base64 data URI.
-     * Stored directly in Firestore - eliminates the need for paid Cloud Storage plans!
+     * Safely reads, rotates, downsamples, and compresses the photo into a Base64 data URI.
+     * Prevents OOM crashes from high-resolution phone cameras.
      */
     suspend fun processPhoto(context: Context, localUri: Uri): String = withContext(Dispatchers.IO) {
         try {
-            val inputStream = context.contentResolver.openInputStream(localUri)
-            val originalBitmap = BitmapFactory.decodeStream(inputStream)
-            inputStream?.close()
-
-            if (originalBitmap == null) return@withContext ""
-
-            // Scale to max 800px on longest dimension (~40-60 KB)
-            val maxDim = 800
-            val maxOriginal = maxOf(originalBitmap.width, originalBitmap.height)
-            val ratio = if (maxOriginal > maxDim) maxDim.toFloat() / maxOriginal else 1.0f
-
-            val targetWidth = (originalBitmap.width * ratio).toInt()
-            val targetHeight = (originalBitmap.height * ratio).toInt()
-
-            val scaledBitmap = if (ratio < 1.0f) {
-                Bitmap.createScaledBitmap(originalBitmap, targetWidth, targetHeight, true)
-            } else {
-                originalBitmap
+            // 1. Decode bounds only to prevent loading huge bitmap into RAM
+            val boundsOptions = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            context.contentResolver.openInputStream(localUri)?.use { stream ->
+                BitmapFactory.decodeStream(stream, null, boundsOptions)
             }
 
+            val origWidth = boundsOptions.outWidth
+            val origHeight = boundsOptions.outHeight
+            if (origWidth <= 0 || origHeight <= 0) return@withContext ""
+
+            // 2. Calculate inSampleSize targeting ~800px max
+            val maxTarget = 800
+            var sampleSize = 1
+            while (origWidth / (sampleSize * 2) >= maxTarget && origHeight / (sampleSize * 2) >= maxTarget) {
+                sampleSize *= 2
+            }
+
+            // 3. Decode scaled bitmap using RGB_565 (50% less RAM)
+            val decodeOptions = BitmapFactory.Options().apply {
+                inSampleSize = sampleSize
+                inPreferredConfig = Bitmap.Config.RGB_565
+            }
+            val decodedBitmap = context.contentResolver.openInputStream(localUri)?.use { stream ->
+                BitmapFactory.decodeStream(stream, null, decodeOptions)
+            } ?: return@withContext ""
+
+            // 4. Read EXIF orientation to correct camera rotation
+            var rotationDegrees = 0f
+            try {
+                context.contentResolver.openInputStream(localUri)?.use { stream ->
+                    val exif = ExifInterface(stream)
+                    rotationDegrees = when (exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+                        ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+                        ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+                        ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+                        else -> 0f
+                    }
+                }
+            } catch (_: Throwable) {}
+
+            val matrix = Matrix()
+            if (rotationDegrees != 0f) {
+                matrix.postRotate(rotationDegrees)
+            }
+
+            // Scale to final target max dimension
+            val currentMax = maxOf(decodedBitmap.width, decodedBitmap.height)
+            if (currentMax > maxTarget) {
+                val scale = maxTarget.toFloat() / currentMax
+                matrix.postScale(scale, scale)
+            }
+
+            val finalBitmap = if (!matrix.isIdentity) {
+                Bitmap.createBitmap(
+                    decodedBitmap,
+                    0,
+                    0,
+                    decodedBitmap.width,
+                    decodedBitmap.height,
+                    matrix,
+                    true
+                )
+            } else {
+                decodedBitmap
+            }
+
+            // 5. Compress to JPEG
             val outputStream = ByteArrayOutputStream()
-            scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
-            val byteArray = outputStream.toByteArray()
-            val base64String = Base64.encodeToString(byteArray, Base64.NO_WRAP)
-            "data:image/jpeg;base64,$base64String"
+            finalBitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
+            val bytes = outputStream.toByteArray()
+            val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+            "data:image/jpeg;base64,$base64"
         } catch (e: Throwable) {
             e.printStackTrace()
             ""
@@ -67,7 +118,8 @@ class ReportRepository {
         photoUrl: String,
         latitude: Double,
         longitude: Double,
-        address: String
+        address: String,
+        landmark: String = ""
     ) {
         val user = auth.currentUser
         val doc = reportsCollection.document()
@@ -80,6 +132,7 @@ class ReportRepository {
             photoUrl = photoUrl,
             location = GeoPoint(latitude, longitude),
             address = address,
+            landmark = landmark,
             status = ReportStatus.OPEN.name,
             createdAt = System.currentTimeMillis(),
             updatedAt = System.currentTimeMillis()

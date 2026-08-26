@@ -1,12 +1,14 @@
 package com.example.pawalert.util
 
-import android.annotation.SuppressLint
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.location.Address
 import android.location.Geocoder
 import android.location.Location
 import android.net.Uri
 import android.os.Build
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
@@ -26,8 +28,22 @@ import kotlin.math.*
 object LocationHelper {
 
     /**
+     * Checks if location permissions are granted before requesting location.
+     */
+    fun hasLocationPermission(context: Context): Boolean {
+        val fine = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val coarse = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        return fine || coarse
+    }
+
+    /**
      * Calculates distance in meters between two lat/lng coordinates using the Haversine formula.
-     * Pure math implementation so it runs seamlessly in unit tests and on device without mocking.
      */
     fun calculateDistanceMeters(
         startLat: Double,
@@ -46,7 +62,7 @@ object LocationHelper {
     }
 
     /**
-     * Formats distance in meters to a human-readable string (e.g., "350 m away", "1.4 km away").
+     * Formats distance in meters to a human-readable string.
      */
     fun formatDistance(meters: Float?): String {
         if (meters == null) return "Distance unknown"
@@ -58,10 +74,12 @@ object LocationHelper {
     }
 
     /**
-     * Fetches the current device location with high accuracy using FusedLocationProviderClient.
+     * Fetches the current device location safely without crashing if permissions are not granted.
      */
-    @SuppressLint("MissingPermission")
     suspend fun getCurrentLocation(context: Context): Location? = withContext(Dispatchers.IO) {
+        if (!hasLocationPermission(context)) {
+            return@withContext null
+        }
         try {
             val fusedClient = LocationServices.getFusedLocationProviderClient(context)
             val cts = CancellationTokenSource()
@@ -71,7 +89,7 @@ object LocationHelper {
             ).await()
 
             location ?: fusedClient.lastLocation.await()
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             e.printStackTrace()
             null
         }
@@ -107,7 +125,7 @@ object LocationHelper {
                 val address = addresses?.firstOrNull()
                 formatAddress(address, latitude, longitude)
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             formatCoordinatesFallback(latitude, longitude)
         }
     }

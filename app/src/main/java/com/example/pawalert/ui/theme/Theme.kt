@@ -20,6 +20,8 @@ private val LightColors = lightColorScheme(
 private val DarkColors = darkColorScheme(
     primary = Amber80,
     secondary = Brown80,
+    background = Background,
+    surface = Surface,
 )
 
 @Composable
@@ -32,8 +34,12 @@ fun PawAlertTheme(
     if (!view.isInEditMode) {
         val context = view.context
         (context as? Activity)?.window?.let { window ->
-            window.statusBarColor = colorScheme.primary.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            try {
+                window.statusBarColor = colorScheme.primary.toArgb()
+                WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            } catch (e: Throwable) {
+                e.printStackTrace()
+            }
         }
     }
     MaterialTheme(

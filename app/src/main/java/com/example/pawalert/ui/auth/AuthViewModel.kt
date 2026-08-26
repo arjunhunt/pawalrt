@@ -28,15 +28,19 @@ data class AuthUiState(
     val authState: AuthState = AuthState.Idle
 )
 
-class AuthViewModel(
-    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
-) : ViewModel() {
+class AuthViewModel : ViewModel() {
+
+    private val auth by lazy { FirebaseAuth.getInstance() }
 
     private val _uiState = MutableStateFlow(
         AuthUiState(
-            currentUser = auth.currentUser,
-            displayName = auth.currentUser?.displayName.orEmpty(),
-            authState = if (auth.currentUser != null) AuthState.Authenticated else AuthState.Idle
+            currentUser = try { FirebaseAuth.getInstance().currentUser } catch (_: Throwable) { null },
+            displayName = try { FirebaseAuth.getInstance().currentUser?.displayName.orEmpty() } catch (_: Throwable) { "" },
+            authState = try {
+                if (FirebaseAuth.getInstance().currentUser != null) AuthState.Authenticated else AuthState.Idle
+            } catch (_: Throwable) {
+                AuthState.Idle
+            }
         )
     )
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
@@ -54,22 +58,23 @@ class AuthViewModel(
     }
 
     fun toggleAuthMode() {
-        _uiState.update { it.copy(isSignUp = !it.isSignUp) }
+        _uiState.update { it.copy(isSignUp = !it.isSignUp, authState = AuthState.Idle) }
     }
 
-    /**
-     * Quick 1-click anonymous sign in with display name setup for community helpers.
-     */
-    fun continueAsCommunityFeeder(name: String) {
+    fun continueAsCommunityFeeder(nickname: String) {
+        if (nickname.isBlank()) {
+            _uiState.update { it.copy(authState = AuthState.Error("Please enter your name or feeder nickname")) }
+            return
+        }
+
         viewModelScope.launch {
+            _uiState.update { it.copy(authState = AuthState.Loading) }
             try {
-                _uiState.update { it.copy(authState = AuthState.Loading) }
                 val result = auth.signInAnonymously().await()
                 val user = result.user
-
-                if (user != null && name.isNotBlank()) {
+                if (user != null && nickname.isNotBlank()) {
                     val profileUpdate = UserProfileChangeRequest.Builder()
-                        .setDisplayName(name.trim())
+                        .setDisplayName(nickname.trim())
                         .build()
                     user.updateProfile(profileUpdate).await()
                 }
@@ -77,80 +82,80 @@ class AuthViewModel(
                 _uiState.update {
                     it.copy(
                         currentUser = auth.currentUser,
+                        displayName = nickname.trim(),
                         authState = AuthState.Authenticated
                     )
                 }
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(authState = AuthState.Error(e.localizedMessage ?: "Failed to sign in"))
+                    it.copy(authState = AuthState.Error(e.localizedMessage ?: "Failed to sign in. Please check network."))
                 }
             }
         }
     }
 
-    fun authenticateWithEmail() {
-        val email = _uiState.value.email.trim()
-        val password = _uiState.value.password.trim()
-        val name = _uiState.value.displayName.trim()
-        val isSignUp = _uiState.value.isSignUp
+    fun authenticateWithEmailPassword() {
+        val state = _uiState.value
+        val email = state.email.trim()
+        val pass = state.password.trim()
 
-        if (email.isBlank() || password.isBlank()) {
-            _uiState.update { it.copy(authState = AuthState.Error("Please enter email and password")) }
+        if (email.isBlank() || pass.isBlank()) {
+            _uiState.update { it.copy(authState = AuthState.Error("Please enter both email and password")) }
+            return
+        }
+
+        if (pass.length < 6) {
+            _uiState.update { it.copy(authState = AuthState.Error("Password must be at least 6 characters")) }
             return
         }
 
         viewModelScope.launch {
+            _uiState.update { it.copy(authState = AuthState.Loading) }
             try {
-                _uiState.update { it.copy(authState = AuthState.Loading) }
-                if (isSignUp) {
-                    val result = auth.createUserWithEmailAndPassword(email, password).await()
-                    if (name.isNotBlank()) {
-                        val profileUpdate = UserProfileChangeRequest.Builder()
-                            .setDisplayName(name)
-                            .build()
-                        result.user?.updateProfile(profileUpdate)?.await()
+                if (state.isSignUp) {
+                    val result = auth.createUserWithEmailAndPassword(email, pass).await()
+                    if (state.displayName.isNotBlank()) {
+                        result.user?.updateProfile(
+                            UserProfileChangeRequest.Builder()
+                                .setDisplayName(state.displayName.trim())
+                                .build()
+                        )?.await()
                     }
                 } else {
-                    auth.signInWithEmailAndPassword(email, password).await()
+                    auth.signInWithEmailAndPassword(email, pass).await()
                 }
 
                 _uiState.update {
                     it.copy(
                         currentUser = auth.currentUser,
+                        displayName = auth.currentUser?.displayName ?: state.displayName,
                         authState = AuthState.Authenticated
                     )
                 }
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(authState = AuthState.Error(e.localizedMessage ?: "Authentication failed"))
+                    it.copy(authState = AuthState.Error(e.localizedMessage ?: "Authentication failed."))
                 }
             }
         }
     }
 
-    fun updateDisplayName(name: String) {
-        val user = auth.currentUser ?: return
-        viewModelScope.launch {
-            try {
-                val profileUpdate = UserProfileChangeRequest.Builder()
-                    .setDisplayName(name.trim())
-                    .build()
-                user.updateProfile(profileUpdate).await()
-                _uiState.update { it.copy(displayName = name.trim(), currentUser = auth.currentUser) }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(authState = AuthState.Error(e.localizedMessage ?: "Update failed")) }
-            }
-        }
-    }
-
     fun signOut() {
-        auth.signOut()
+        try {
+            auth.signOut()
+        } catch (_: Throwable) {}
         _uiState.update {
-            AuthUiState(currentUser = null, authState = AuthState.Idle)
+            AuthUiState(
+                currentUser = null,
+                displayName = "",
+                authState = AuthState.Idle
+            )
         }
     }
 
     fun dismissError() {
-        _uiState.update { it.copy(authState = AuthState.Idle) }
+        if (_uiState.value.authState is AuthState.Error) {
+            _uiState.update { it.copy(authState = AuthState.Idle) }
+        }
     }
 }

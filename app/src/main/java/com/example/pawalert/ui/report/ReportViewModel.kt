@@ -41,14 +41,15 @@ data class ReportFormState(
 }
 
 class ReportViewModel(
-    application: Application,
-    private val repository: ReportRepository = ReportRepository()
+    application: Application
 ) : AndroidViewModel(application) {
+
+    private val repository = ReportRepository()
 
     private val _uiState = MutableStateFlow(ReportFormState())
     val uiState: StateFlow<ReportFormState> = _uiState.asStateFlow()
 
-    fun onPhotoSelected(uri: Uri?) {
+    fun onPhotoSelected(uri: Uri) {
         _uiState.update { it.copy(selectedPhotoUri = uri) }
     }
 
@@ -59,10 +60,8 @@ class ReportViewModel(
     }
 
     fun onCameraPhotoCaptured() {
-        val uri = _uiState.value.tempCameraUri
-        if (uri != null) {
-            _uiState.update { it.copy(selectedPhotoUri = uri) }
-        }
+        val uri = _uiState.value.tempCameraUri ?: return
+        _uiState.update { it.copy(selectedPhotoUri = uri, tempCameraUri = null) }
     }
 
     fun onCategorySelected(category: ProblemType) {
@@ -74,8 +73,8 @@ class ReportViewModel(
     }
 
     fun fetchCurrentLocation() {
-        _uiState.update { it.copy(isFetchingLocation = true) }
         viewModelScope.launch {
+            _uiState.update { it.copy(isFetchingLocation = true) }
             val location = LocationHelper.getCurrentLocation(getApplication())
             if (location != null) {
                 val address = LocationHelper.getAddressFromLocation(
@@ -92,34 +91,16 @@ class ReportViewModel(
                     )
                 }
             } else {
-                _uiState.update {
-                    it.copy(
-                        isFetchingLocation = false,
-                        submissionState = ReportSubmissionState.Error("Could not determine current location. Please ensure GPS is enabled.")
-                    )
-                }
+                _uiState.update { it.copy(isFetchingLocation = false) }
             }
         }
     }
 
     fun submitReport() {
         val state = _uiState.value
-        val photoUri = state.selectedPhotoUri
-        val lat = state.latitude
-        val lng = state.longitude
-
-        if (photoUri == null) {
-            _uiState.update { it.copy(submissionState = ReportSubmissionState.Error("Please take or select a photo of the dog.")) }
-            return
-        }
-        if (state.description.isBlank()) {
-            _uiState.update { it.copy(submissionState = ReportSubmissionState.Error("Please provide a short description.")) }
-            return
-        }
-        if (lat == null || lng == null) {
-            _uiState.update { it.copy(submissionState = ReportSubmissionState.Error("Location is required. Please capture your location.")) }
-            return
-        }
+        val photoUri = state.selectedPhotoUri ?: return
+        val lat = state.latitude ?: return
+        val lng = state.longitude ?: return
 
         viewModelScope.launch {
             try {
@@ -133,19 +114,21 @@ class ReportViewModel(
                     photoUrl = downloadUrl,
                     latitude = lat,
                     longitude = lng,
-                    address = state.address.ifBlank { "Nearby" }
+                    address = state.address.ifBlank { "Location coordinates recorded" }
                 )
 
                 _uiState.update { it.copy(submissionState = ReportSubmissionState.Success) }
             } catch (e: Exception) {
                 _uiState.update {
-                    it.copy(submissionState = ReportSubmissionState.Error(e.localizedMessage ?: "Failed to submit report. Please try again."))
+                    it.copy(submissionState = ReportSubmissionState.Error(e.localizedMessage ?: "Submission failed. Please check network."))
                 }
             }
         }
     }
 
     fun dismissError() {
-        _uiState.update { it.copy(submissionState = ReportSubmissionState.Idle) }
+        if (_uiState.value.submissionState is ReportSubmissionState.Error) {
+            _uiState.update { it.copy(submissionState = ReportSubmissionState.Idle) }
+        }
     }
 }

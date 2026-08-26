@@ -29,10 +29,11 @@ data class DetailUiState(
 }
 
 class DetailViewModel(
-    application: Application,
-    private val repository: ReportRepository = ReportRepository(),
-    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
+    application: Application
 ) : AndroidViewModel(application) {
+
+    private val repository = ReportRepository()
+    private val auth by lazy { FirebaseAuth.getInstance() }
 
     private val _uiState = MutableStateFlow(DetailUiState(currentUserId = auth.currentUser?.uid.orEmpty()))
     val uiState: StateFlow<DetailUiState> = _uiState.asStateFlow()
@@ -59,9 +60,7 @@ class DetailViewModel(
                 repository.claimReport(reportId)
                 _uiState.update { it.copy(actionState = DetailActionState.Idle) }
             } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(actionState = DetailActionState.Error(e.localizedMessage ?: "Failed to claim report"))
-                }
+                _uiState.update { it.copy(actionState = DetailActionState.Error(e.localizedMessage ?: "Failed to claim alert.")) }
             }
         }
     }
@@ -73,9 +72,7 @@ class DetailViewModel(
                 repository.markResolved(reportId)
                 _uiState.update { it.copy(actionState = DetailActionState.Idle) }
             } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(actionState = DetailActionState.Error(e.localizedMessage ?: "Failed to resolve report"))
-                }
+                _uiState.update { it.copy(actionState = DetailActionState.Error(e.localizedMessage ?: "Failed to mark resolved.")) }
             }
         }
     }
@@ -87,9 +84,7 @@ class DetailViewModel(
                 repository.unclaimReport(reportId)
                 _uiState.update { it.copy(actionState = DetailActionState.Idle) }
             } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(actionState = DetailActionState.Error(e.localizedMessage ?: "Failed to unclaim report"))
-                }
+                _uiState.update { it.copy(actionState = DetailActionState.Error(e.localizedMessage ?: "Failed to release alert.")) }
             }
         }
     }

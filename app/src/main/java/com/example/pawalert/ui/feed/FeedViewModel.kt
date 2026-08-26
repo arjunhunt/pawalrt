@@ -28,9 +28,10 @@ data class FeedUiState(
 )
 
 class FeedViewModel(
-    application: Application,
-    private val repository: ReportRepository = ReportRepository()
+    application: Application
 ) : AndroidViewModel(application) {
+
+    private val repository = ReportRepository()
 
     private val _userLocation = MutableStateFlow<Location?>(null)
     private val _selectedCategory = MutableStateFlow<ProblemType?>(null)

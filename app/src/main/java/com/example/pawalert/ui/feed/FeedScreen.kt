@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.example.pawalert.ui.common.PawAlertImage
 import com.example.pawalert.data.DogReport
 import com.example.pawalert.data.ProblemType
 import com.example.pawalert.data.ReportStatus
@@ -284,8 +285,8 @@ fun DogReportCard(
                     .fillMaxWidth()
                     .height(180.dp)
             ) {
-                AsyncImage(
-                    model = report.photoUrl,
+                PawAlertImage(
+                    photoUrl = report.photoUrl,
                     contentDescription = "Photo of reported dog",
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop

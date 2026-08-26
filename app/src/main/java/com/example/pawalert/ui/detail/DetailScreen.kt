@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.example.pawalert.ui.common.PawAlertImage
 import com.example.pawalert.data.ReportStatus
 import com.example.pawalert.ui.theme.*
 import com.example.pawalert.util.LocationHelper
@@ -125,36 +126,12 @@ fun DetailScreen(
                             .height(280.dp)
                             .background(MaterialTheme.colorScheme.surfaceVariant)
                     ) {
-                        if (report.photoUrl.isNotBlank()) {
-                            AsyncImage(
-                                model = report.photoUrl,
-                                contentDescription = "Photo of reported dog",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Pets,
-                                        contentDescription = null,
-                                        tint = Amber40,
-                                        modifier = Modifier.size(48.dp)
-                                    )
-                                    Text(
-                                        text = "Photo not provided",
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                }
-                            }
-                        }
+                        PawAlertImage(
+                            photoUrl = report.photoUrl,
+                            contentDescription = "Photo of reported dog",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
 
                         // Status Badge
                         Surface(

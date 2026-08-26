@@ -61,6 +61,26 @@ class AuthViewModel : ViewModel() {
         _uiState.update { it.copy(isSignUp = !it.isSignUp, authState = AuthState.Idle) }
     }
 
+    fun updateDisplayName(displayName: String) {
+        val trimmed = displayName.trim()
+        if (trimmed.isBlank()) return
+
+        viewModelScope.launch {
+            try {
+                val user = auth.currentUser
+                if (user != null) {
+                    val profileUpdate = UserProfileChangeRequest.Builder()
+                        .setDisplayName(trimmed)
+                        .build()
+                    user.updateProfile(profileUpdate).await()
+                    _uiState.update { it.copy(displayName = trimmed, currentUser = auth.currentUser) }
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(authState = AuthState.Error(e.localizedMessage ?: "Failed to update name")) }
+            }
+        }
+    }
+
     fun continueAsCommunityFeeder(nickname: String) {
         if (nickname.isBlank()) {
             _uiState.update { it.copy(authState = AuthState.Error("Please enter your name or feeder nickname")) }
@@ -94,7 +114,7 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    fun authenticateWithEmailPassword() {
+    fun authenticateWithEmail() {
         val state = _uiState.value
         val email = state.email.trim()
         val pass = state.password.trim()

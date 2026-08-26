@@ -12,12 +12,12 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.tasks.await
 import java.util.UUID
 
-class ReportRepository(
-    private val firestore: FirebaseFirestore = FirebaseFirestore.getInstance(),
-    private val storage: FirebaseStorage = FirebaseStorage.getInstance(),
-    private val auth: FirebaseAuth = FirebaseAuth.getInstance()
-) {
-    private val reportsCollection = firestore.collection("reports")
+class ReportRepository {
+
+    private val firestore: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
+    private val storage: FirebaseStorage by lazy { FirebaseStorage.getInstance() }
+    private val auth: FirebaseAuth by lazy { FirebaseAuth.getInstance() }
+    private val reportsCollection by lazy { firestore.collection("reports") }
 
     /** Uploads a photo to Firebase Storage and returns its public download URL. */
     suspend fun uploadPhoto(localUri: Uri): String {
@@ -57,40 +57,62 @@ class ReportRepository(
 
     /**
      * Real-time stream of all non-resolved reports.
-     * Safely catches any Firestore errors (e.g. database not created yet, rules)
+     * Safely catches any Firestore errors (e.g. database not created yet, offline)
      * without crashing the app.
      */
     fun observeActiveReports(): Flow<List<DogReport>> = callbackFlow {
-        val registration = reportsCollection
-            .addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    error.printStackTrace()
-                    trySend(emptyList())
-                    return@addSnapshotListener
+        try {
+            val registration = reportsCollection
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) {
+                        error.printStackTrace()
+                        trySend(emptyList())
+                        return@addSnapshotListener
+                    }
+                    try {
+                        val reports = snapshot?.toObjects(DogReport::class.java) ?: emptyList()
+                        val activeReports = reports.filter {
+                            it.status == ReportStatus.OPEN.name || it.status == ReportStatus.IN_PROGRESS.name
+                        }
+                        trySend(activeReports)
+                    } catch (e: Throwable) {
+                        e.printStackTrace()
+                        trySend(emptyList())
+                    }
                 }
-                val reports = snapshot?.toObjects(DogReport::class.java) ?: emptyList()
-                val activeReports = reports.filter {
-                    it.status == ReportStatus.OPEN.name || it.status == ReportStatus.IN_PROGRESS.name
-                }
-                trySend(activeReports)
-            }
-        awaitClose { registration.remove() }
+            awaitClose { registration.remove() }
+        } catch (e: Throwable) {
+            e.printStackTrace()
+            trySend(emptyList())
+            close()
+        }
     }.catch { e ->
         e.printStackTrace()
         emit(emptyList())
     }
 
     fun observeReport(reportId: String): Flow<DogReport?> = callbackFlow {
-        val registration = reportsCollection.document(reportId)
-            .addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    error.printStackTrace()
-                    trySend(null)
-                    return@addSnapshotListener
+        try {
+            val registration = reportsCollection.document(reportId)
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) {
+                        error.printStackTrace()
+                        trySend(null)
+                        return@addSnapshotListener
+                    }
+                    try {
+                        trySend(snapshot?.toObject(DogReport::class.java))
+                    } catch (e: Throwable) {
+                        e.printStackTrace()
+                        trySend(null)
+                    }
                 }
-                trySend(snapshot?.toObject(DogReport::class.java))
-            }
-        awaitClose { registration.remove() }
+            awaitClose { registration.remove() }
+        } catch (e: Throwable) {
+            e.printStackTrace()
+            trySend(null)
+            close()
+        }
     }.catch { e ->
         e.printStackTrace()
         emit(null)

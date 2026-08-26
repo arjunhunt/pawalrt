@@ -1,6 +1,8 @@
 package com.example.pawalert.ui.feed
 
 import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -18,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -29,10 +32,8 @@ import com.example.pawalert.data.ProblemType
 import com.example.pawalert.data.ReportStatus
 import com.example.pawalert.ui.theme.*
 import com.example.pawalert.util.LocationHelper
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.rememberMultiplePermissionsState
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FeedScreen(
     onNavigateToReport: () -> Unit,
@@ -41,16 +42,25 @@ fun FeedScreen(
     viewModel: FeedViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
 
-    val locationPermissionsState = rememberMultiplePermissionsState(
-        permissions = listOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        )
-    )
+    var hasLocationPermission by remember {
+        mutableStateOf(LocationHelper.hasLocationPermission(context))
+    }
 
-    LaunchedEffect(locationPermissionsState.allPermissionsGranted) {
-        if (locationPermissionsState.allPermissionsGranted) {
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        hasLocationPermission = granted
+        if (granted) {
+            viewModel.refreshLocation()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (hasLocationPermission) {
             viewModel.refreshLocation()
         }
     }
@@ -113,7 +123,7 @@ fun FeedScreen(
                 .padding(innerPadding)
         ) {
             // Permission request banner if GPS is not yet allowed
-            if (!locationPermissionsState.allPermissionsGranted) {
+            if (!hasLocationPermission) {
                 Surface(
                     color = Amber80.copy(alpha = 0.5f),
                     modifier = Modifier.fillMaxWidth()
@@ -137,7 +147,14 @@ fun FeedScreen(
                                 color = Brown40
                             )
                         }
-                        TextButton(onClick = { locationPermissionsState.launchMultiplePermissionRequest() }) {
+                        TextButton(onClick = {
+                            permissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            )
+                        }) {
                             Text("Enable", fontWeight = FontWeight.Bold, color = Brown40)
                         }
                     }

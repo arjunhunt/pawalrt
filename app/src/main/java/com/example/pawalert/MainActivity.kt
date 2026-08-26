@@ -17,7 +17,9 @@ import com.google.firebase.auth.FirebaseAuth
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        try {
+            enableEdgeToEdge()
+        } catch (_: Throwable) {}
 
         setContent {
             PawAlertTheme {
@@ -26,10 +28,10 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val navController = rememberNavController()
-                    val auth = FirebaseAuth.getInstance()
-                    val startDestination = if (auth.currentUser != null) {
-                        Screen.Feed.route
-                    } else {
+                    val startDestination = try {
+                        val auth = FirebaseAuth.getInstance()
+                        if (auth.currentUser != null) Screen.Feed.route else Screen.Auth.route
+                    } catch (_: Throwable) {
                         Screen.Auth.route
                     }
 

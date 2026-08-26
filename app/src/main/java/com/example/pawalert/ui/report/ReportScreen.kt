@@ -1,6 +1,7 @@
 package com.example.pawalert.ui.report
 
 import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -28,19 +29,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.pawalert.data.ProblemType
 import com.example.pawalert.ui.theme.Amber40
 import com.example.pawalert.ui.theme.Brown40
 import com.example.pawalert.ui.theme.StatusOpen
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.PermissionStatus
-import com.google.accompanist.permissions.isGranted
-import com.google.accompanist.permissions.rememberMultiplePermissionsState
-import com.google.accompanist.permissions.rememberPermissionState
+import com.example.pawalert.util.LocationHelper
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReportScreen(
     onNavigateBack: () -> Unit,
@@ -52,24 +50,14 @@ fun ReportScreen(
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // Permissions
-    val locationPermissionsState = rememberMultiplePermissionsState(
-        permissions = listOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION
-        )
-    )
-
-    val cameraPermissionState = rememberPermissionState(
-        permission = Manifest.permission.CAMERA
-    )
-
-    // Gallery Picker launcher
-    val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            viewModel.onPhotoSelected(uri)
+    // Native Permission Launchers
+    val locationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            viewModel.fetchCurrentLocation()
         }
     }
 
@@ -83,9 +71,28 @@ fun ReportScreen(
         }
     }
 
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            val uri = viewModel.prepareCameraUri()
+            cameraUriTarget = uri
+            cameraLauncher.launch(uri)
+        }
+    }
+
+    // Gallery Picker launcher
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            viewModel.onPhotoSelected(uri)
+        }
+    }
+
     // Trigger initial location fetch if permission granted
-    LaunchedEffect(locationPermissionsState.allPermissionsGranted) {
-        if (locationPermissionsState.allPermissionsGranted && uiState.latitude == null) {
+    LaunchedEffect(Unit) {
+        if (LocationHelper.hasLocationPermission(context) && uiState.latitude == null) {
             viewModel.fetchCurrentLocation()
         }
     }
@@ -172,12 +179,13 @@ fun ReportScreen(
                                 .padding(12.dp)
                                 .clip(CircleShape)
                                 .clickable {
-                                    if (cameraPermissionState.status == PermissionStatus.Granted) {
+                                    val hasCam = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                                    if (hasCam) {
                                         val uri = viewModel.prepareCameraUri()
                                         cameraUriTarget = uri
                                         cameraLauncher.launch(uri)
                                     } else {
-                                        cameraPermissionState.launchPermissionRequest()
+                                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                                     }
                                 },
                             color = MaterialTheme.colorScheme.primary,
@@ -219,12 +227,13 @@ fun ReportScreen(
                         ) {
                             Button(
                                 onClick = {
-                                    if (cameraPermissionState.status == PermissionStatus.Granted) {
+                                    val hasCam = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                                    if (hasCam) {
                                         val uri = viewModel.prepareCameraUri()
                                         cameraUriTarget = uri
                                         cameraLauncher.launch(uri)
                                     } else {
-                                        cameraPermissionState.launchPermissionRequest()
+                                        cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                                     }
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = Amber40)
@@ -355,10 +364,15 @@ fun ReportScreen(
 
                     Button(
                         onClick = {
-                            if (locationPermissionsState.allPermissionsGranted) {
+                            if (LocationHelper.hasLocationPermission(context)) {
                                 viewModel.fetchCurrentLocation()
                             } else {
-                                locationPermissionsState.launchMultiplePermissionRequest()
+                                locationLauncher.launch(
+                                    arrayOf(
+                                        Manifest.permission.ACCESS_FINE_LOCATION,
+                                        Manifest.permission.ACCESS_COARSE_LOCATION
+                                    )
+                                )
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),

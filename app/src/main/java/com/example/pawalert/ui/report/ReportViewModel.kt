@@ -105,13 +105,13 @@ class ReportViewModel(
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(submissionState = ReportSubmissionState.UploadingPhoto) }
-                val downloadUrl = repository.uploadPhoto(photoUri)
+                val photoData = repository.processPhoto(getApplication(), photoUri)
 
                 _uiState.update { it.copy(submissionState = ReportSubmissionState.Submitting) }
                 repository.submitReport(
                     problemType = state.selectedCategory,
                     description = state.description.trim(),
-                    photoUrl = downloadUrl,
+                    photoUrl = photoData,
                     latitude = lat,
                     longitude = lng,
                     address = state.address.ifBlank { "Location coordinates recorded" }

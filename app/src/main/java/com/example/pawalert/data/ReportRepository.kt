@@ -1,31 +1,63 @@
 package com.example.pawalert.data
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
+import android.util.Base64
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.GeoPoint
-import com.google.firebase.storage.FirebaseStorage
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.tasks.await
-import java.util.UUID
+import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 
 class ReportRepository {
 
     private val firestore: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
-    private val storage: FirebaseStorage by lazy { FirebaseStorage.getInstance() }
     private val auth: FirebaseAuth by lazy { FirebaseAuth.getInstance() }
     private val reportsCollection by lazy { firestore.collection("reports") }
 
-    /** Uploads a photo to Firebase Storage and returns its public download URL. */
-    suspend fun uploadPhoto(localUri: Uri): String {
-        val uid = auth.currentUser?.uid ?: "anonymous"
-        val fileName = "reports/$uid/${UUID.randomUUID()}.jpg"
-        val ref = storage.reference.child(fileName)
-        ref.putFile(localUri).await()
-        return ref.downloadUrl.await().toString()
+    /**
+     * Compresses the dog photo to an optimized JPEG and encodes to Base64 data URI.
+     * Stored directly in Firestore - eliminates the need for paid Cloud Storage plans!
+     */
+    suspend fun processPhoto(context: Context, localUri: Uri): String = withContext(Dispatchers.IO) {
+        try {
+            val inputStream = context.contentResolver.openInputStream(localUri)
+            val originalBitmap = BitmapFactory.decodeStream(inputStream)
+            inputStream?.close()
+
+            if (originalBitmap == null) return@withContext ""
+
+            // Scale to max 800px on longest dimension (~40-60 KB)
+            val maxDim = 800
+            val maxOriginal = maxOf(originalBitmap.width, originalBitmap.height)
+            val ratio = if (maxOriginal > maxDim) maxDim.toFloat() / maxOriginal else 1.0f
+
+            val targetWidth = (originalBitmap.width * ratio).toInt()
+            val targetHeight = (originalBitmap.height * ratio).toInt()
+
+            val scaledBitmap = if (ratio < 1.0f) {
+                Bitmap.createScaledBitmap(originalBitmap, targetWidth, targetHeight, true)
+            } else {
+                originalBitmap
+            }
+
+            val outputStream = ByteArrayOutputStream()
+            scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 70, outputStream)
+            val byteArray = outputStream.toByteArray()
+            val base64String = Base64.encodeToString(byteArray, Base64.NO_WRAP)
+            "data:image/jpeg;base64,$base64String"
+        } catch (e: Throwable) {
+            e.printStackTrace()
+            ""
+        }
     }
 
     /** Creates a new dog-welfare report in Firestore. */
@@ -57,8 +89,7 @@ class ReportRepository {
 
     /**
      * Real-time stream of all non-resolved reports.
-     * Safely catches any Firestore errors (e.g. database not created yet, offline)
-     * without crashing the app.
+     * Safely catches any Firestore errors without crashing the app.
      */
     fun observeActiveReports(): Flow<List<DogReport>> = callbackFlow<List<DogReport>> {
         try {

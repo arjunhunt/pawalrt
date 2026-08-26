@@ -199,7 +199,7 @@ fun ReportScreen(
                             .fillMaxSize()
                             .padding(16.dp),
                         verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterVertically
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
                             imageVector = Icons.Default.Pets,
